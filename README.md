@@ -18,10 +18,7 @@ A bash script that syncs directories between your laptop and a home server over 
 
 ## Setup
 
-1. Copy `synclife.sh` somewhere in your `PATH` (e.g. `~/.local/bin/synclife`) and make it executable:
-   ```bash
-   chmod +x synclife
-   ```
+1. Download `synclife` from this respository.
 2. Open the script and edit the constants at the top:
    ```bash
    TAILSCALE_SERVER_NAME="zimaos"   # your server's Tailscale hostname
@@ -33,6 +30,10 @@ A bash script that syncs directories between your laptop and a home server over 
    ```bash
    ssh-keygen -t ed25519          # if you don't already have a key
    ssh-copy-id youruser@<server>
+   ```
+5. Make `synclife` executable and copy it somewhere in your `PATH` (e.g. `~/.local/bin/synclife`):
+   ```bash
+   chmod +x synclife
    ```
 
 ## Usage
