@@ -1,0 +1,138 @@
+#!/bin/bash
+
+set -euo pipefail
+
+# Defaults (modify this to fit your device and server setup)
+
+SERVER_IP=""
+TAILSCALE_SERVER_NAME="zimaos"
+SERVER_USERNAME=""
+
+if ! SERVER_IP=$(tailscale ip --4 "$TAILSCALE_SERVER_NAME"); then
+    echo "Error: Could not get Tailscale IP for '$TAILSCALE_SERVER_NAME', type synclife --help for information about setting up the script."
+    exit 1
+fi
+
+SERVER_HOME="$SERVER_USERNAME@$SERVER_IP:~"
+
+DIRECTION="push"
+DELETE=false
+
+declare -A HOME_DIRS=(
+    [BOOKS]="$HOME/Books"
+    [DESKTOP]="$HOME/Desktop"
+    [DOWNLOADS]="$HOME/Downloads"
+    [WORK]="$HOME/ISG"
+    [MUSIC]="$HOME/Music/files_organized"
+    [PICTURES]="$HOME/Pictures"
+    [SPORTS]="$HOME/Powerlifting"
+    [PROGRAMS]="$HOME/Programs"
+    [PROJECTS]="$HOME/Projects"
+    [SCHOOL]="$HOME/School"
+    [MOVIES]="$HOME/Videos/Movies"
+    [TV]="$HOME/Videos/TV_shows"
+)
+
+declare -A SERVER_DIRS=(
+    [BOOKS]="$SERVER_HOME/Media/Books"
+    [DESKTOP]="$SERVER_HOME/Desktop"
+    [DOWNLOADS]="$SERVER_HOME/Downloads"
+    [WORK]="$SERVER_HOME/ISG"
+    [MUSIC]="$SERVER_HOME/Media/Music"
+    [PICTURES]="$SERVER_HOME/Pictures_laptop"
+    [SPORTS]="$SERVER_HOME/Powerlifting"
+    [PROGRAMS]="$SERVER_HOME/Programs"
+    [PROJECTS]="$SERVER_HOME/Projects"
+    [SCHOOL]="$SERVER_HOME/School"
+    [MOVIES]="$SERVER_HOME/Media/Movies"
+    [TV]="$SERVER_HOME/Media/TV Shows"
+)
+
+usage() {
+    cat << 'USAGE'
+Usage: synclife --push/--pull [options]
+
+Syncs files between local directories and a remote server using rsync.
+Tailscale and zimaos are setted up on script, but you can modify this to fit your device and server setup.
+You must set up the constants in the script before runing it a first time. There is no way to set up the constants from the command line.
+There must be a one-to-one mapping between the local directories and the remote directories (this includes the constants).
+
+Options:
+  --push              Push local files to the server (default)
+  --pull              Pull files from the server to local
+  --skip CONST        Skip syncing the specified constant (for example --skip BOOKS).
+  --delete            Delete the files on the destination if missing from the source (use with caution!)
+  -h, --help          Show this help message
+
+Example:
+  synclife --delete
+  synclife --push (redundant, as this is the default)
+  synclife --pull --skip BOOKS --skip MOVIES
+  synclife --pull --delete
+USAGE
+}
+
+# Argument parsing
+declare -A SKIP_KEYS=()
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --push)
+            DIRECTION="push"
+            shift
+            ;;
+        --pull)
+            DIRECTION="pull"
+            shift
+            ;;
+        --skip)
+            key="$2"
+            if [ -z "${HOME_DIRS[$key]+x}" ]; then
+                echo "Error: unknown constant '$key' passed to --skip."
+                echo "Valid constants: ${!HOME_DIRS[*]}"
+                exit 1
+            fi
+            SKIP_KEYS["$key"]=1
+            shift 2
+            ;;
+        --delete)
+            DELETE=true
+            shift
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            usage
+            exit 1
+            ;;
+    esac
+done
+
+if [ "$DIRECTION" == "push" ]; then
+    declare -n SRC_DIRS=HOME_DIRS
+    declare -n DEST_DIRS=SERVER_DIRS
+else
+    declare -n SRC_DIRS=SERVER_DIRS
+    declare -n DEST_DIRS=HOME_DIRS
+fi
+
+for key in "${!SRC_DIRS[@]}"; do
+    if [ -n "${SKIP_KEYS[$key]+x}" ]; then
+        echo "Skipping: $key"
+        continue
+    elif [ -z "${DEST_DIRS[$key]+x}" ]; then
+        echo "Error: skipping '$key' - no destination directory defined."
+        exit 1
+    fi
+    if [ "$DELETE" = true ]; then
+        rsync -avh --delete "${SRC_DIRS[$key]}/" "${DEST_DIRS[$key]}/"
+    else
+        rsync -avh "${SRC_DIRS[$key]}/" "${DEST_DIRS[$key]}/"
+    fi
+done
+
+
+
